@@ -5335,16 +5335,16 @@ export function RetroOffice3D({
               color="#7090ff"
             />
 
+            {/* Keep the city HDR local so ambience survives offline and behind strict networks. */}
+            <Suspense fallback={null}>
+              <Environment files="/office-assets/hdri/potsdamer_platz_1k.hdr" />
+            </Suspense>
+
             {/* Floor + walls — always visible, no async loading. */}
             <SceneFloorAndWalls showRemoteOffice={remoteOfficeEnabled} />
 
             {/* Wall pictures — procedural, no async loading. */}
             <SceneWallPictures showRemoteOffice={remoteOfficeEnabled} />
-
-            {/* Environment lighting — async, wrapped in its own Suspense so floor stays visible. */}
-            <Suspense fallback={null}>
-              <Environment preset="city" />
-            </Suspense>
 
             {/* Furniture models — each loads its GLB asynchronously. */}
             <Suspense fallback={null}>
