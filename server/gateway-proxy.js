@@ -209,8 +209,7 @@ function createGatewayProxy(options) {
       const browserHasAuth =
         hasNonEmptyToken(frame.params) ||
         hasNonEmptyPassword(frame.params) ||
-        hasNonEmptyDeviceToken(frame.params) ||
-        hasCompleteDeviceAuth(frame.params);
+        hasNonEmptyDeviceToken(frame.params);
 
       const requiresToken = upstreamAdapterType === "openclaw";
       if (requiresToken && !upstreamToken && !browserHasAuth) {

@@ -195,7 +195,7 @@ const normalizeLocalGatewayDefaults = (value: unknown): StudioGatewaySettings | 
   // Accept both full settings ({ url, token }) and the sanitized public
   // form ({ url, tokenConfigured }) returned by /api/studio.  When only
   // tokenConfigured is present the actual token isn't available on the
-  // client — leave it empty so the connection dialog can prompt if needed.
+  // client 閳?leave it empty so the connection dialog can prompt if needed.
   const token = typeof raw.token === "string" ? raw.token.trim() : "";
   const adapterType =
     raw.adapterType === "demo" ||
@@ -212,10 +212,11 @@ const normalizeGatewayProfilePublic = (
   value: unknown
 ): { url: string; token: string } | null => {
   if (!value || typeof value !== "object") return null;
-  const raw = value as { url?: unknown };
+  const raw = value as { url?: unknown; token?: unknown };
   const url = typeof raw.url === "string" ? raw.url.trim() : "";
   if (!url) return null;
-  return { url, token: "" };
+  const token = typeof raw.token === "string" ? raw.token.trim() : "";
+  return { url, token };
 };
 
 const normalizeGatewayProfilesPublic = (
@@ -813,27 +814,28 @@ export const useGatewayConnection = (
             : undefined),
           ...(normalizedDefaults?.profiles ?? {}),
         };
+        const explicitGatewayToken =
+          gateway && "token" in gateway && typeof gateway.token === "string"
+            ? gateway.token
+            : undefined;
         const mergedProfiles = {
           ...baseProfiles,
           ...(hasSavedUrl
             ? {
                 [nextAdapterType]: {
                   url: resolvedUrl,
-                  token:
-                    gateway && "token" in gateway && typeof gateway.token === "string"
-                      ? gateway.token
-                      : "",
+                  token: explicitGatewayToken ?? "",
                 },
               }
             : {}),
         };
-        const selectedProfile = (
+        const defaultProfileForSelectedAdapter =
           mergedProfiles[nextAdapterType] ??
           lastKnownGoodForSelectedAdapter ??
-          resolveDefaultGatewayProfile(nextAdapterType, normalizedDefaults)
-        );
-        const nextGatewayUrl = selectedProfile.url;
-        const nextToken = selectedProfile.token;
+          resolveDefaultGatewayProfile(nextAdapterType, normalizedDefaults);
+        const nextGatewayUrl = defaultProfileForSelectedAdapter.url;
+        const resolvedToken = explicitGatewayToken ?? defaultProfileForSelectedAdapter.token;
+        const nextToken = resolvedToken;
         loadedGatewaySettings.current = {
           gatewayUrl: nextGatewayUrl.trim(),
           token: nextToken,
@@ -953,7 +955,7 @@ export const useGatewayConnection = (
             token,
             authScopeKey: gatewayUrl,
             clientName: resolveGatewayClientName(selectedAdapterType, gatewayUrl),
-            disableDeviceAuth: selectedAdapterType !== "openclaw",
+            disableDeviceAuth: false,
           });
           lastError = null;
           break;

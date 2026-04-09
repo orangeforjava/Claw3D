@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import {
-  sanitizeStudioGatewaySettings,
   sanitizeStudioSettings,
   type StudioSettingsPatch,
 } from "@/lib/studio/settings";
@@ -23,7 +22,7 @@ export async function GET() {
     return NextResponse.json(
       {
         settings: sanitizeStudioSettings(settings),
-        localGatewayDefaults: sanitizeStudioGatewaySettings(localGatewayDefaults),
+        localGatewayDefaults,
       },
       { headers: { "Cache-Control": "no-store" } }
     );

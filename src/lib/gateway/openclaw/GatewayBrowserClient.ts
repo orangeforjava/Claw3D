@@ -505,28 +505,29 @@ export class GatewayBrowserClient {
       isSecureContext,
     });
 
-    const scopes = ["operator.admin", "operator.approvals", "operator.pairing"];
+    const scopes = ["operator.admin", "operator.approvals", "operator.pairing", "operator.read", "operator.write"];
     const role = "operator";
     const authScopeKey = normalizeAuthScope(this.opts.authScopeKey ?? this.opts.url);
     let deviceIdentity: Awaited<ReturnType<typeof loadOrCreateDeviceIdentity>> | null = null;
     let canFallbackToShared = false;
-    let authToken = this.opts.token;
+    const authToken = this.opts.token;
+    let storedDeviceToken: string | null = null;
 
     if (isSecureContext) {
       deviceIdentity = await loadOrCreateDeviceIdentity();
-      const storedToken = loadDeviceAuthToken({
+      storedDeviceToken = loadDeviceAuthToken({
         deviceId: deviceIdentity.deviceId,
         role,
         scope: authScopeKey,
-      })?.token;
-      authToken = storedToken ?? this.opts.token;
-      canFallbackToShared = Boolean(storedToken && this.opts.token);
+      })?.token ?? null;
+      canFallbackToShared = Boolean(storedDeviceToken && this.opts.token);
     }
     const auth =
-      authToken || this.opts.password
+      authToken || this.opts.password || storedDeviceToken
         ? {
             token: authToken,
             password: this.opts.password,
+            deviceToken: storedDeviceToken ?? undefined,
           }
         : undefined;
 
