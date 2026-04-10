@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { AgentState } from "@/features/agents/state/store";
 import { AgentChatPanel } from "@/features/agents/components/AgentChatPanel";
 import type { GatewayModelChoice } from "@/lib/gateway/models";
@@ -46,6 +46,7 @@ describe("AgentChatPanel markdown rendering", () => {
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
   it("renders assistant markdown separately from tool detail cards", () => {
@@ -174,5 +175,57 @@ describe("AgentChatPanel markdown rendering", () => {
     expect(screen.getByText("read /tmp/README.md")).toBeInTheDocument();
     expect(screen.queryByText("read /tmp/README.md", { selector: "summary" })).toBeNull();
     expect(screen.queryByText(/"file_path"/)).toBeNull();
+  });
+
+  it("routes local file markdown links through the local opener endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    render(
+      createElement(AgentChatPanel, {
+        agent: {
+          ...createAgent(),
+          outputLines: [
+            "Open [README](D:\\data\\codex_all\\openclaw\\README.md#L12) before changing docs.",
+          ],
+        },
+        isSelected: true,
+        canSend: true,
+        models,
+        stopBusy: false,
+        onLoadMoreHistory: vi.fn(),
+        onOpenSettings: vi.fn(),
+        onModelChange: vi.fn(),
+        onThinkingChange: vi.fn(),
+        onDraftChange: vi.fn(),
+        onSend: vi.fn(),
+        onStopRun: vi.fn(),
+        onAvatarShuffle: vi.fn(),
+      })
+    );
+
+    const fileLink = screen.getByRole("link", { name: "README" });
+    expect(fileLink).toHaveAttribute(
+      "href",
+      "/api/local-file/open?path=D%3A%5Cdata%5Ccodex_all%5Copenclaw%5CREADME.md&line=12"
+    );
+
+    fireEvent.click(fileLink);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/local-file/open?path=D%3A%5Cdata%5Ccodex_all%5Copenclaw%5CREADME.md&line=12",
+        expect.objectContaining({
+          method: "POST",
+        })
+      );
+    });
   });
 });

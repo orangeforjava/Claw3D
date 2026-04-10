@@ -12,6 +12,7 @@ import {
 } from "react";
 import type { AgentState as AgentRecord } from "@/features/agents/state/store";
 import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Check, ChevronRight, Clock, Mic, Pencil, Square, Trash2, X } from "lucide-react";
 import type { GatewayModelChoice } from "@/lib/gateway/models";
@@ -19,6 +20,11 @@ import type { AgentAvatarProfile } from "@/lib/avatars/profile";
 import { rewriteMediaLinesToMarkdown } from "@/lib/text/media-markdown";
 import { normalizeAssistantDisplayText } from "@/lib/text/assistantText";
 import { isNearBottom } from "@/lib/dom";
+import {
+  buildLocalFileOpenHref,
+  parseLocalFileReference,
+  rewriteMarkdownLocalFileLinks,
+} from "@/lib/chat/localFileLinks";
 import { useVoiceRecorder, type VoiceRecorderState, type VoiceSendPayload } from "@/hooks/useVoiceRecorder";
 import { AgentAvatar } from "./AgentAvatar";
 import type {
@@ -115,6 +121,87 @@ const resolveAssistantMaxWidthClass = (text: string | null | undefined): string 
     return ASSISTANT_MAX_WIDTH_EXPANDED_CLASS;
   }
   return ASSISTANT_MAX_WIDTH_DEFAULT_CLASS;
+};
+
+const markdownComponents: Components = {
+  a: ({ href, children, ...props }) => {
+    if (typeof href === "string" && href.startsWith("/api/local-file/open?")) {
+      return (
+        <a
+          {...props}
+          href={href}
+          data-local-file-link="true"
+          onClick={(event) => {
+            if (
+              event.defaultPrevented ||
+              (typeof event.button === "number" && event.button !== 0) ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.shiftKey ||
+              event.altKey
+            ) {
+              return;
+            }
+            event.preventDefault();
+            void fetch(href, {
+              method: "POST",
+            });
+          }}
+        >
+          {children}
+        </a>
+      );
+    }
+
+    const localFileReference = parseLocalFileReference(href);
+    if (localFileReference) {
+      const openHref = buildLocalFileOpenHref(localFileReference);
+      return (
+        <a
+          {...props}
+          href={openHref}
+          data-local-file-link="true"
+          onClick={(event) => {
+            if (
+              event.defaultPrevented ||
+              (typeof event.button === "number" && event.button !== 0) ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.shiftKey ||
+              event.altKey
+            ) {
+              return;
+            }
+            event.preventDefault();
+            void fetch(openHref, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(localFileReference),
+            });
+          }}
+          title={localFileReference.path}
+        >
+          {children}
+        </a>
+      );
+    }
+
+    if (typeof href === "string" && /^https?:\/\//i.test(href)) {
+      return (
+        <a {...props} href={href} target="_blank" rel="noreferrer">
+          {children}
+        </a>
+      );
+    }
+
+    return (
+      <a {...props} href={href}>
+        {children}
+      </a>
+    );
+  },
 };
 
 type AgentChatPanelProps = {
@@ -255,6 +342,15 @@ const ToolCallDetails = memo(function ToolCallDetails({
   );
 });
 
+const MARKDOWN_REMARK_PLUGINS = [remarkGfm];
+
+const markdownRendererProps = {
+  remarkPlugins: MARKDOWN_REMARK_PLUGINS,
+  components: markdownComponents,
+} as const;
+
+const renderMarkdownText = (text: string) => rewriteMarkdownLocalFileLinks(text);
+
 const ThinkingDetailsRow = memo(function ThinkingDetailsRow({
   events,
   thinkingText,
@@ -322,7 +418,7 @@ const ThinkingDetailsRow = memo(function ThinkingDetailsRow({
                 key={`thinking-event-${index}-${event.text.slice(0, 48)}`}
                 className="agent-markdown min-w-0 text-foreground/85"
               >
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{event.text}</ReactMarkdown>
+                <ReactMarkdown {...markdownRendererProps}>{renderMarkdownText(event.text)}</ReactMarkdown>
               </div>
             ) : (
               <ToolCallDetails
@@ -358,7 +454,7 @@ const UserMessageCard = memo(function UserMessageCard({
         ) : null}
       </div>
       <div className="agent-markdown type-body px-3 py-3 text-foreground dark:px-3.5 dark:py-3.5">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+        <ReactMarkdown {...markdownRendererProps}>{renderMarkdownText(text)}</ReactMarkdown>
       </div>
     </div>
   );
@@ -490,15 +586,15 @@ const AssistantMessageCard = memo(function AssistantMessageCard({
                       );
                     }
                     return (
-                      <div className="agent-markdown text-foreground">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{rewritten}</ReactMarkdown>
+                        <div className="agent-markdown text-foreground">
+                        <ReactMarkdown {...markdownRendererProps}>{renderMarkdownText(rewritten)}</ReactMarkdown>
                       </div>
                     );
                   })()
                 ) : (
                   <div className="agent-markdown text-foreground">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {rewriteMediaLinesToMarkdown(contentText)}
+                    <ReactMarkdown {...markdownRendererProps}>
+                      {renderMarkdownText(rewriteMediaLinesToMarkdown(contentText))}
                     </ReactMarkdown>
                   </div>
                 )}
